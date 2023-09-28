@@ -1,5 +1,6 @@
 'use strict';
 var domino = require('../lib');
+var puppeteer = require("puppeteer");
 
 exports = exports.xss = {};
 
@@ -9,6 +10,32 @@ exports = exports.xss = {};
 // If we change HTML serialization such that any of these tests fail, please
 // review the change very carefully for potential XSS vectors!
 
+async function alertFired(html) {
+  let alerted = false;
+  const page = await incognito.newPage();
+  page.on("dialog", async dialog => {
+    alerted = true;
+    await dialog.accept();
+  });
+  await page.goto("data:text/html," + html, {waitUntil: 'load'});
+  return alerted;
+}
+
+/** @type {puppeteer.Browser} */
+let browser;
+/** @type {puppeteer.BrowserContext} */
+let incognito;
+
+exports.before = async function() {
+  browser = await puppeteer.launch({headless:"new"});
+  incognito = await browser.createIncognitoBrowserContext();
+}
+
+exports.after = async function() {
+  await incognito.close();
+  await browser.close();
+}
+
 exports.fp170_31 = function() {
   var document = domino.createDocument(
     '<img src="test.jpg" alt="``onload=xss()" />'
@@ -17,6 +44,8 @@ exports.fp170_31 = function() {
   document.body.innerHTML.should.equal(
     '<img src="test.jpg" alt="``onload=xss()">'
   );
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.fp170_32 = function() {
@@ -29,6 +58,9 @@ exports.fp170_32 = function() {
   document.body.innerHTML.should.equal(
     '<article xmlns="urn:img src=x onerror=xss()//">123</article>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.fp170_33 = function() {
@@ -40,6 +72,9 @@ exports.fp170_33 = function() {
   document.body.innerHTML.should.equal(
     '<p style="font -family:\'ar\\27\\3bx\\3aexpression\\28xss\\28\\29\\29\\3bial\'"></p>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.fp170_34 = function() {
@@ -51,6 +86,9 @@ exports.fp170_34 = function() {
   document.body.innerHTML.should.equal(
     '<p style="font -family:\'ar&quot;;x=expression(xss())/*ial\'"></p>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.fp170_35 = function() {
@@ -62,6 +100,9 @@ exports.fp170_35 = function() {
   document.body.innerHTML.should.equal(
     '<img style="font-fa\\22onload\\3dxss\\28\\29\\20mily:\'arial\'" src="test.jpg">'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.fp170_36 = function() {
@@ -72,6 +113,9 @@ exports.fp170_36 = function() {
   document.head.innerHTML.should.equal(
     '<style>*{font-family:\'ar&lt;img src=&quot;test.jpg&quot; onload=&quot;xss()&quot;/&gt;ial\'}</style>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.fp170_37 = function() {
@@ -82,6 +126,9 @@ exports.fp170_37 = function() {
   document.body.innerHTML.should.equal(
     '<p><svg><style>*{font-family:\'&lt;/style&gt;&lt;img/src=x\tonerror=xss()//\'}</style></svg></p>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.styleMatchingClosingTagInRawText = function() {
@@ -94,6 +141,9 @@ exports.styleMatchingClosingTagInRawText = function() {
   document.body.serialize().should.equal(
     '<style>abc&lt;/style><script>alert(1)</script></style>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.styleMatchingClosingTagSkipsCommentedContent = function() {
@@ -106,6 +156,9 @@ exports.styleMatchingClosingTagSkipsCommentedContent = function() {
   document.body.serialize().should.equal(
     '<style>abc<!--</style>--><script>alert(1)</script></style>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.styleMatchingClosingTagAfterClosingComment = function() {
@@ -118,6 +171,9 @@ exports.styleMatchingClosingTagAfterClosingComment = function() {
   document.body.serialize().should.equal(
     '<style>abc-->&lt;/style><script>alert(1)</script></style>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.styleMatchingClosingTagSkipsUnclosedCommentedContent = function() {
@@ -132,6 +188,9 @@ exports.styleMatchingClosingTagSkipsUnclosedCommentedContent = function() {
   document.body.serialize().should.equal(
     '<style>abc<!--</style><script>alert(1)</script></style>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
 
 exports.scriptMatchingClosingTagInRawText = function() {
@@ -145,4 +204,79 @@ exports.scriptMatchingClosingTagInRawText = function() {
   document.body.serialize().should.equal(
     '<script>abc&lt;/script><script>alert(1)&lt;/script></script>'
   );
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
 };
+
+exports.oneRawTextTagInsideAnotherOne = function() {
+  const document = domino.createDocument('');
+  const xmp = document.createElement("xmp");
+  const style = document.createElement("style");
+  xmp.textContent = "</style><script>alert(1)</script>";
+  style.appendChild(xmp);
+  document.body.appendChild(style);
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
+}
+
+exports.xssInAttributeInsideRawTextTag = function() {
+  const document = domino.createDocument('');
+  const xmp = document.createElement("xmp");
+  const div = document.createElement("div");
+  div.title = "</xmp><script>alert(1)</script>";
+  xmp.appendChild(div);
+  document.body.appendChild(xmp);
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
+}
+
+exports.commentNodeInsideRawTextTag = function() {
+  const document = domino.createDocument('');
+  const xmp = document.createElement("xmp");
+  const comment = document.createComment('</xmp><script>alert(1)</script>');
+  xmp.appendChild(comment);
+  document.body.appendChild(xmp);
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
+}
+
+exports.alternativeEndTagForRawTextTag = function() {
+  const document = domino.createDocument('');
+  const style = document.createElement("style");
+  style.textContent = "</style  /foobar><script>alert(1)</script>";
+  document.body.appendChild(style);
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
+}
+
+exports.badCommentNode = function() {
+  const document = domino.createDocument('');
+  const comment = document.createComment('--><script>alert(1)</script>');
+  document.body.appendChild(comment);
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
+}
+
+exports.anotherBadCommentNode = function() {
+  const document = domino.createDocument('');
+  const comment = document.createComment('--!><script>alert(1)</script>');
+  document.body.appendChild(comment);
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
+}
+
+exports.badProcessingInstruction = function() {
+  const document = domino.createDocument('');
+  const pi = document.createProcessingInstruction("bad", "><script>alert(1)</script>");
+  document.body.appendChild(pi);
+
+  const html = document.serialize();
+  return alertFired(html).should.eventually.be.false('alert fired for: ' + html);
+}
