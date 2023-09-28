@@ -83,3 +83,66 @@ exports.fp170_37 = function() {
     '<p><svg><style>*{font-family:\'&lt;/style&gt;&lt;img/src=x\tonerror=xss()//\'}</style></svg></p>'
   );
 };
+
+exports.styleMatchingClosingTagInRawText = function() {
+  const document = domino.createDocument('');
+  const style = document.createElement("style");
+  style.textContent = "abc</style><script>alert(1)</script>";
+  document.body.appendChild(style);
+
+  // Ensure that HTML entities are properly encoded inside <style>
+  document.body.serialize().should.equal(
+    '<style>abc&lt;/style><script>alert(1)</script></style>'
+  );
+};
+
+exports.styleMatchingClosingTagSkipsCommentedContent = function() {
+  const document = domino.createDocument('');
+  const style = document.createElement("style");
+  style.textContent = "abc<!--</style>--><script>alert(1)</script>";
+  document.body.appendChild(style);
+
+  // No escaping in this case, since </style> is inside a comment block.
+  document.body.serialize().should.equal(
+    '<style>abc<!--</style>--><script>alert(1)</script></style>'
+  );
+};
+
+exports.styleMatchingClosingTagAfterClosingComment = function() {
+  const document = domino.createDocument('');
+  const style = document.createElement("style");
+  style.textContent = "abc--></style><script>alert(1)</script>";
+  document.body.appendChild(style);
+
+  // Ensure that HTML entities are properly encoded inside <style>
+  document.body.serialize().should.equal(
+    '<style>abc-->&lt;/style><script>alert(1)</script></style>'
+  );
+};
+
+exports.styleMatchingClosingTagSkipsUnclosedCommentedContent = function() {
+  const document = domino.createDocument('');
+  const style = document.createElement("style");
+  style.textContent = "abc<!--</style><script>alert(1)</script>";
+  document.body.appendChild(style);
+
+  // No escaping in this case, since </style> is located after
+  // an open comment tag (thus the contents after it would remain
+  // in a comment block after parsing).
+  document.body.serialize().should.equal(
+    '<style>abc<!--</style><script>alert(1)</script></style>'
+  );
+};
+
+exports.scriptMatchingClosingTagInRawText = function() {
+  const document = domino.createDocument('');
+  const script = document.createElement("script");
+  script.textContent = "abc</script><script>alert(1)</script>";
+  document.body.appendChild(script);
+
+  // Ensure that HTML entities are properly encoded inside <script>
+  // Note: the `</script>` is encoded in both places.
+  document.body.serialize().should.equal(
+    '<script>abc&lt;/script><script>alert(1)&lt;/script></script>'
+  );
+};
